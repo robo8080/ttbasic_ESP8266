@@ -18,7 +18,7 @@
 
 // Depending on device functions
 // TO-DO Rewrite these functions to fit your machine
-#define STR_EDITION "ARDUINO ESP8266"
+#define STR_EDITION "ARDUINO(ESP8266)"
 
 // Terminal control
 #define c_putch(c) Serial.write(c)
