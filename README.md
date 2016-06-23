@@ -1,8 +1,8 @@
 TOYOSHIKI Tiny BASIC for Arduino(ESP8266/ESP-WROOM-02)
 
 *オリジナルのArduino版からの変更点*<br>
-*ESP8266/ESP-WROOM-02だとSoft WDTに引っかかってしまう問題を対策<br>
-*LOAD/SAVEコマンドを追加
+1.ESP8266/ESP-WROOM-02だとSoft WDTに引っかかってしまう問題を対策<br>
+2.LOAD/SAVEコマンドを追加
 
 The code tested in ESP-WROOM-02.<br>
 Use UART terminal, or temporarily use Arduino IDE serial monitor.
