@@ -6,12 +6,13 @@
 
 #include <Arduino.h>
 #include <stdlib.h>
+#include <EEPROM.h>
 
 // TOYOSHIKI TinyBASIC symbols
 // TO-DO Rewrite defined values to fit your machine as needed
 #define SIZE_LINE 80 //Command line buffer length + NULL
 #define SIZE_IBUF 80 //i-code conversion buffer size
-#define SIZE_LIST 256 //List buffer size
+#define SIZE_LIST 255 //List buffer size
 #define SIZE_ARRY 32 //Array area size
 #define SIZE_GSTK 6 //GOSUB stack size(2/nest)
 #define SIZE_LSTK 15 //FOR stack size(5/nest)
@@ -51,7 +52,10 @@ const char *kwtbl[] = {
   "-", "+", "*", "/", "(", ")",
   ">=", "#", ">", "=", "<=", "<",
   "@", "RND", "ABS", "SIZE",
-  "LIST", "RUN", "NEW"
+  "LIST", "RUN", "NEW",
+  "SAVE",//extend
+  "BOOT",//extend
+  "LOAD",//extend
 };
 
 // Keyword count
@@ -68,6 +72,9 @@ enum {
   I_GTE, I_SHARP, I_GT, I_EQ, I_LTE, I_LT,
   I_ARRAY, I_RND, I_ABS, I_SIZE,
   I_LIST, I_RUN, I_NEW,
+  I_SAVE,//extend
+  I_BOOT,//extend
+  I_LOAD,//extend
   I_NUM, I_VAR, I_STR,
   I_EOL
 };
@@ -153,7 +160,7 @@ char lbuf[SIZE_LINE]; //Command line buffer
 unsigned char ibuf[SIZE_IBUF]; //i-code conversion buffer
 short var[26]; //Variable area
 short arr[SIZE_ARRY]; //Array area
-unsigned char listbuf[SIZE_LIST]; //List area
+unsigned char listbuf[SIZE_LIST + 1]; //リスト保存領域+ブートフラグ
 unsigned char* clp; //Pointer current line
 unsigned char* cip; //Pointer current Intermediate code
 unsigned char* gstk[SIZE_GSTK]; //GOSUB stack
@@ -1174,6 +1181,8 @@ unsigned char* iexe() {
     case I_NEW: //中間コードがNEWの場合
     case I_LIST: //中間コードがLISTの場合
     case I_RUN: //中間コードがRUNの場合
+    case I_SAVE:
+    case I_LOAD:
       err = ERR_COM; //エラー番号をセット
       return NULL; //終了
     case I_SEMI: //中間コードが「;」の場合
@@ -1252,7 +1261,26 @@ void inew(void) {
   *listbuf = 0; //プログラム保存領域の先頭に末尾の印を置く
   clp = listbuf; //行ポインタをプログラム保存領域の先頭に設定
 }
-
+void isave() {
+  EEPROM.begin(SIZE_LIST+1);
+  // write a listbuf to all SIZE_LIST+1 bytes of the EEPROM
+  for (int i = 0; i < SIZE_LIST+1; i++)
+    EEPROM.write(i, listbuf[i]);
+//  EEPROM.commit();
+  EEPROM.end();
+  
+}
+void iload() {
+  EEPROM.begin(SIZE_LIST+1);
+  // write a listbuf to all SIZE_LIST+1 bytes of the EEPROM
+  for (int i = 0; i < SIZE_LIST+1; i++)
+    listbuf[i] = EEPROM.read(i);
+  
+}
+unsigned char bootflag() {
+  EEPROM.begin(SIZE_LIST+1);
+  return EEPROM.read(SIZE_LIST);
+}
 //Command precessor
 void icom() {
   cip = ibuf; //中間コードポインタを中間コードバッファの先頭に設定
@@ -1280,6 +1308,30 @@ void icom() {
     cip++; //中間コードポインタを次へ進める
     irun(); //RUN命令を実行
     break; //打ち切る
+    
+  case I_SAVE://extend
+    cip++;
+    if(*cip == I_BOOT){
+      cip++;
+      listbuf[SIZE_LIST] = I_BOOT;
+    } else {
+      listbuf[SIZE_LIST] = 0;
+    }
+    if(*cip == I_EOL)
+//      flash_write(listbuf);
+      isave();
+    else
+      err = ERR_COM;
+    break;
+    
+  case I_LOAD://extend
+        cip++;
+    if(*cip == I_EOL)
+//      flash_read(listbuf);
+      iload();
+    else
+      err = ERR_COM;
+    break;
 
   default: //どれにも該当しない場合
     iexe(); //中間コードを実行
@@ -1325,11 +1377,18 @@ void basic() {
   inew(); //実行環境を初期化
 
   //起動メッセージ
+  newline(); //改行
   c_puts("TOYOSHIKI TINY BASIC"); //「TOYOSHIKI TINY BASIC」を表示
   newline(); //改行
   c_puts(STR_EDITION); //版を区別する文字列を表示
   c_puts(" EDITION"); //「 EDITION」を表示
   newline(); //改行
+  if(bootflag() == I_BOOT){
+    c_puts("Power on run"); newline();
+//    flash_read(listbuf);
+    iload();
+    irun();
+  }
   error(); //「OK」またはエラーメッセージを表示してエラー番号をクリア
 
   //端末から1行を入力して実行
